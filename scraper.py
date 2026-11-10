@@ -1,7 +1,7 @@
 import asyncio
 import csv
 import re
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 from playwright.async_api import async_playwright
@@ -49,6 +49,10 @@ def extract_date(text):
     return ""
 
 
+def date_today():
+    return date.today().isoformat()
+
+
 def extract_events(source, content):
     events = []
     seen = set()
@@ -63,7 +67,9 @@ def extract_events(source, content):
         has_date_word = bool(DATE_WORDS.search(line))
 
         # Keep likely event announcements, but don't invent missing details.
-        if not (date or has_event_word or (has_date_word and time_match)):
+        if not (date and (has_event_word or time_match)):
+            continue
+        if date < date_today() or date > (date_today() + timedelta(days=365)).isoformat():
             continue
 
         price_match = PRICE_RE.search(line)
@@ -93,16 +99,11 @@ async def main():
 
     scans = []
     events = []
+    failed_facebook = []
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        page = await browser.new_page(
-            locale="fi-FI",
-            user_agent=(
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            ),
-        )
+
 
         for source in sources:
             print(f"Luetaan: {source['venue']}")
@@ -110,21 +111,30 @@ async def main():
             content = ""
             error_text = ""
 
+            context = await browser.new_context(locale="fi-FI")
+            page = await context.new_page()
             try:
                 response = await page.goto(
                     source["url"],
                     wait_until="domcontentloaded",
                     timeout=30000,
                 )
-                await page.wait_for_timeout(1500)
+                await page.wait_for_timeout(800)
                 title = await page.title()
                 content = await page.locator("body").inner_text(timeout=10000)
                 if response and response.status >= 400:
                     error_text = f"HTTP {response.status}"
+                if "facebook.com" in source["url"] and re.search(r"(log in|kirjaudu sisään|create new account)", content[:1500], re.I) and len(content) < 2500:
+                    error_text = error_text or "Mahdollinen Facebook-kirjautumisseinä"
             except Exception as error:
                 error_text = str(error)[:500]
                 print(f"Virhe: {source['venue']}: {error_text}")
 
+            finally:
+                await context.close()
+
+            if error_text and "facebook.com" in source["url"]:
+                failed_facebook.append({"venue": source["venue"], "url": source["url"], "error": error_text})
             content = content[:12000]
             scans.append({
                 "city": source["city"],
@@ -155,6 +165,12 @@ async def main():
         writer.writeheader()
         writer.writerows(events)
 
+    with open("facebook_failures.csv", "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=["venue", "url", "error"])
+        writer.writeheader()
+        writer.writerows(failed_facebook)
+
+    print(f"Facebook-ongelmia: {len(failed_facebook)}. Katso facebook_failures.csv.")
     print(f"Valmis! Skannattiin {len(scans)} lähdettä.")
     print(f"Löytyi {len(events)} mahdollista tapahtumariviä (vaativat tarkistuksen).")
 
