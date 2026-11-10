@@ -69,7 +69,7 @@ def extract_events(source, content):
         # Keep likely event announcements, but don't invent missing details.
         if not (date and (has_event_word or time_match)):
             continue
-        if date < date_today() or date > (date.today() + timedelta(days=365)).isoformat():
+        if date < date_today() or date > (datetime.now().date() + timedelta(days=365)).isoformat():
             continue
 
         price_match = PRICE_RE.search(line)
