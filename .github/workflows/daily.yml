@@ -29,7 +29,7 @@ jobs:
       - name: Asenna Chromium
         run: python -m playwright install --with-deps chromium
 
-      - name: Aja Porvoon lähteiden skannaus
+      - name: Skannaa lähteet ja tunnista tapahtumaehdokkaat
         run: python scraper.py
 
       - name: Tallenna skannauksen tulokset
@@ -37,6 +37,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: porvoo-scan-results
-          path: scan_results.csv
+          path: |
+            scan_results.csv
+            event_candidates.csv
           if-no-files-found: warn
           retention-days: 14
