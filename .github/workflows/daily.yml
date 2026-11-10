@@ -1,4 +1,4 @@
-name: Porvoon menojen paivittainen skannaus
+name: Meno skannaus
 
 on:
   workflow_dispatch:
