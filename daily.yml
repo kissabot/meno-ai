@@ -1,4 +1,1 @@
-Menokartta/
-└── .github/
-    └── workflows/
-        └── daily.yml
+.github/workflows/daily.yml
