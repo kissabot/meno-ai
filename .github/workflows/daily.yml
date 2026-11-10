@@ -40,5 +40,6 @@ jobs:
           path: |
             scan_results.csv
             event_candidates.csv
+            facebook_failures.csv
           if-no-files-found: warn
           retention-days: 14
